@@ -6,6 +6,8 @@ This report studies image deblurring as an ill-conditioned inverse problem. It f
 
 To reproduce the results, select the project's Python environment with NumPy, SciPy, Matplotlib, and ipykernel installed, then use **Restart Kernel and Run All**. Run every cell in order; later experiments reuse the earlier operator, observation, and baseline histories. No external image or dataset is needed. Fixed seeds make the synthetic data repeatable; library versions and floating-point arithmetic can cause tiny numerical differences.
 
+Files: `image_deblurring.ipynb` is the runnable source; `image_deblurring.md` is its rendered export for reading on GitHub. Both contain the same report and results.
+
 Assignment: [Project 2 report requirements and diagnostic protocol](https://designinformaticslab.github.io/DesignOptimization2025/project2.html#report-requirements).
 
 
@@ -55,9 +57,12 @@ from scipy.ndimage import gaussian_filter
 
 np.random.seed(0)
 
+import scipy, sys
+print(f"Python {sys.version.split()[0]}; NumPy {np.__version__}; SciPy {scipy.__version__}; Matplotlib {plt.matplotlib.__version__}")
 print("Setup successful!")
 ```
 
+    Python 3.12.3; NumPy 2.4.4; SciPy 1.17.1; Matplotlib 3.10.8
     Setup successful!
 
 
@@ -146,7 +151,7 @@ All three panels use the same grayscale limits (0 to 1), so the differences come
 
 For periodic convolution, Fourier patterns are eigenvectors of the blur operator. If $\widehat h_\sigma(\omega)$ is the discrete response of the actual sampled Gaussian kernel, the corresponding Hessian curvature is $|\widehat h_\sigma(\omega)|^2$. Fine oscillations can almost cancel under averaging, producing tiny curvatures while the constant pattern has curvature 1. Equivalently, the blur's small singular values are squared in $H=A_\sigma^T A_\sigma$. This creates both slow correction of weak patterns and extreme sensitivity to noisy data.
 
-The structural knob in D2 is $\sigma$ in pixels, with the grid and intensity units held fixed. For example, the current sweep gives spectral condition estimates of about 9.20 at 0.5 pixels, $2.33\times10^7$ at 1 pixel, and $4.02\times10^{17}$ at 1.5 pixels. This is substantial growth under stronger smoothing. The wider sweep has local dips because the finite truncated kernel's weakest response among discrete frequencies can change; we do not assume that every successive width must increase the estimate.
+The structural knob in D2 is $\sigma$ in pixels, with the grid and intensity units held fixed. For example, the current sweep gives spectral condition estimates of about 9.20 at 0.5 pixels, $2.33\times10^7$ at 1 pixel, and $4.02\times10^{17}$ at 1.5 pixels. The estimate rises monotonically from 1 with no blur to about $4\times10^{17}$ at 1.5 pixels. Between 1.5 and 1.75 pixels, truncating the sampled kernel at four standard deviations makes its frequency response take negative values (checked in D2), so the weakest response is set by truncation rather than by Gaussian smoothing. Estimates there are non-monotone (for example $2.3\times10^{22}$ at 2 px versus $1.5\times10^{23}$ at 1.75 px) and, above roughly $10^{16}$, beyond what a direct float64 Hessian calculation could resolve. The growth claim therefore rests on the monotone 0 to 1.5 pixel range, and the 2-pixel operator used in D1, D3, and D4 is treated as severely ill-conditioned rather than as a precise value.
 
 The second intrinsic test is survival under diagonal rescaling. Every periodic kernel column is a circular shift with the same norm, so $D=cI$ and symmetric Jacobi scaling changes every curvature by the same factor. Its exact condition number is unchanged. D2 verifies this constant diagonal and plots both numerical estimates. Together, the growth range and scaling invariance establish the intrinsic mechanism for this model. Noise changes reconstruction difficulty, but does not change this fixed linear problem's Hessian.
 
@@ -194,7 +199,7 @@ hessian_eigenvalues, hessian_condition = hessian_spectrum_from_factor(B)
 
 ```
 
-    Operator matches Experiment 1; random-image maximum difference: 1.94e-16
+    Operator matches Experiment 1; random-image maximum difference: 2.22e-16
 
 
 ### D2: Blur width and Jacobi scaling for periodic blur
@@ -259,23 +264,58 @@ print("Exact-arithmetic Jacobi condition number: unchanged. Plotted deviations a
     Condition numbers below are spectral estimates, not certified full-Hessian float64 measurements.
     sigma (px)      estimate H    estimate H_J   numerical diff %
           0.00       1.000e+00       1.000e+00          0.000e+00
-          0.50       9.199e+00       9.199e+00         -1.110e-13
-          0.75       4.150e+03       4.150e+03         -6.661e-14
-          1.00       2.334e+07       2.334e+07         -1.454e-12
-          1.25       1.595e+12       1.595e+12         -3.224e-11
-          1.50       4.023e+17       4.023e+17          1.512e-11
-          1.75       1.543e+23       1.543e+23          1.420e-09
-          2.00       2.272e+22       2.272e+22          6.014e-09
-          2.25       7.331e+24       7.331e+24          5.161e-10
-          2.50       1.812e+25       1.812e+25          1.987e-08
-          3.00       1.771e+21       1.771e+21         -1.069e-09
-          3.50       2.691e+23       2.691e+23          6.748e-10
-          4.00       1.807e+33       1.807e+33          1.356e-06
+          0.50       9.199e+00       9.199e+00          8.882e-14
+          0.75       4.150e+03       4.150e+03          0.000e+00
+          1.00       2.334e+07       2.334e+07          6.439e-13
+          1.25       1.595e+12       1.595e+12         -3.008e-11
+          1.50       4.023e+17       4.023e+17          3.196e-10
+          1.75       1.543e+23       1.543e+23          1.601e-08
+          2.00       2.272e+22       2.272e+22          3.301e-09
+          2.25       7.331e+24       7.331e+24         -4.581e-09
+          2.50       1.812e+25       1.812e+25          3.434e-08
+          3.00       1.771e+21       1.771e+21         -7.379e-10
+          3.50       2.691e+23       2.691e+23          2.049e-11
+          4.00       1.807e+33       1.807e+33          2.247e-06
     
     At the original sigma = 2 px:
     Raw spectral estimate: 2.272e+22; Jacobi spectral estimate: 2.272e+22
-    Maximum relative spread of the one-axis Hessian diagonal: 5.903e-16
+    Maximum relative spread of the one-axis Hessian diagonal: 7.871e-16
     Exact-arithmetic Jacobi condition number: unchanged. Plotted deviations are floating-point effects.
+
+
+
+```python
+# Why do the estimates stop rising smoothly? Check the sign of the truncated kernel's frequency response.
+min_real_response = np.array([
+    np.fft.fft(blur_axis_matrix(image_size, s)[:, 0]).real.min() for s in blur_widths
+])
+first_negative = np.flatnonzero(min_real_response < 0)[0]
+sign_change_sigma = blur_widths[first_negative]
+monotone_mask = np.arange(blur_widths.size) < first_negative
+assert np.all(np.diff(raw_conditions[monotone_mask]) > 0), "estimates should rise in the positive-response range"
+print(f"{'sigma (px)':>10} {'min Re(kernel response)':>25} {'cond estimate':>15}")
+for s, m, k in zip(blur_widths, min_real_response, raw_conditions):
+    print(f"{s:10.2f} {m:25.3e} {k:15.3e}" + ("   <- response < 0" if m < 0 else ""))
+print(f"\nMonotone growth verified for sigma from 0 to {blur_widths[first_negative - 1]:g} px; response first negative at sigma = {sign_change_sigma:g} px.")
+
+```
+
+    sigma (px)   min Re(kernel response)   cond estimate
+          0.00                 1.000e+00       1.000e+00
+          0.50                 5.742e-01       9.199e+00
+          0.75                 1.246e-01       4.150e+03
+          1.00                 1.439e-02       2.334e+07
+          1.25                 8.898e-04       1.595e+12
+          1.50                 3.971e-05       4.023e+17
+          1.75                -1.188e-05       1.543e+23   <- response < 0
+          2.00                -1.447e-05       2.272e+22   <- response < 0
+          2.25                -1.636e-05       7.331e+24   <- response < 0
+          2.50                -1.760e-05       1.812e+25   <- response < 0
+          3.00                -2.026e-05       1.771e+21   <- response < 0
+          3.50                -2.171e-05       2.691e+23   <- response < 0
+          4.00                -2.278e-05       1.807e+33   <- response < 0
+    
+    Monotone growth verified for sigma from 0 to 1.5 px; response first negative at sigma = 1.75 px.
 
 
 
@@ -287,6 +327,7 @@ axes[0].semilogy(blur_widths, jacobi_conditions, "s--", markerfacecolor="none", 
 axes[0].set_xlabel("Gaussian blur width sigma (pixels)")
 axes[0].set_ylabel("Spectral condition estimate (log scale)")
 axes[0].set_title("D2: Periodic blur and Jacobi scaling")
+axes[0].axvspan(sign_change_sigma, blur_widths.max(), color="tab:orange", alpha=0.10, label="truncated-kernel response changes sign")
 axes[0].grid(True, which="both", alpha=0.25)
 axes[0].legend()
 
@@ -307,13 +348,13 @@ plt.show()
 
 
     
-![png](image_deblurring_files/image_deblurring_13_0.png)
+![png](image_deblurring_files/image_deblurring_14_0.png)
     
 
 
 #### Reading D2: unchanged conditioning in exact arithmetic
 
-With no blur, the Hessian is the identity and the condition number is 1. Wider blur usually suppresses more fine detail and makes recovery harder. The spectral estimates need not rise monotonically: this finite, sampled Gaussian kernel is truncated at four standard deviations, and its weakest response among the discrete periodic frequencies can change sharply as the width changes. Extremely large estimates also require the floating-point caution described in D1.
+With no blur, the Hessian is the identity and the condition number is 1. Wider blur usually suppresses more fine detail and makes recovery harder. The estimates rise monotonically up to 1.5 pixels. Beyond that, the truncated kernel's frequency response changes sign (see the check above), so the weakest response reflects truncation error and the estimates dip and jump. The orange band in the left plot marks that region. Extremely large estimates also require the floating-point caution described in D1.
 
 The original and Jacobi spectral estimates overlap. At the current width of 2 pixels, both are about $2.27\times10^{22}$. For this periodic blur, **the exact condition numbers are identical at every width**, because Jacobi merely multiplies the whole Hessian by a scalar. It cannot reduce the ratio between the strongest and weakest curvatures.
 
@@ -386,7 +427,7 @@ plt.show()
 
 
     
-![png](image_deblurring_files/image_deblurring_17_1.png)
+![png](image_deblurring_files/image_deblurring_18_1.png)
     
 
 
@@ -532,7 +573,7 @@ plt.show()
 
 
     
-![png](image_deblurring_files/image_deblurring_22_0.png)
+![png](image_deblurring_files/image_deblurring_23_0.png)
     
 
 
@@ -545,6 +586,68 @@ This fits the conditioning picture in D1 and D2. Gradient descent can correct pa
 The left panel plots the objective divided by its initial value, **not an objective gap to a computed optimum**. The right panel plots the actual stopping criterion; its dashed line is the same $10^{-5}$ tolerance for both runs. Reaching 5,000 updates is an iteration-limit outcome, not convergence.
 
 A small relative gradient measures approximate stationarity. It does not certify accurate recovery of the sharp image, and the gradient values alone cannot rank conditioning across widths because blur also suppresses gradients in weak directions. These observations contain noise: continuing to minimize the unregularized objective can fit that noise rather than recover useful image detail. This experiment establishes the baseline for a later regularization comparison.
+
+
+
+```python
+# Exact GD update counts in the Fourier domain (valid because the periodic blur is circulant).
+# The relative gradient after k updates is sqrt( sum_i c_i^2 (1 - a(nu_i + w))^(2k) / sum_i c_i^2 ),
+# where nu_i are the Hessian eigenvalues and c_i^2 = nu_i |y_hat_i|^2 is the initial gradient energy in mode i.
+delta_image = np.zeros_like(sharp_image)
+delta_image[0, 0] = 1.0
+
+def exact_gd_update_count(sigma, weight=0.0, tolerance=gd_stopping_tolerance, upper=10**8):
+    transfer = np.fft.fft2(apply_gd_blur(delta_image, sigma))
+    nu = np.abs(transfer)**2
+    observation = apply_gd_blur(sharp_image, sigma) + noise
+    y_hat = np.fft.fft2(observation) / image_size            # orthonormal FFT
+    c_sq = nu * np.abs(y_hat)**2
+    step = 1.0 / (1.0 + weight)                               # 1/L for this objective (L = 1 + weight)
+    contraction = 1.0 - step * (nu + weight)
+    total = c_sq.sum()
+    rel = lambda k: np.sqrt(np.sum(c_sq * contraction**(2.0 * k)) / total)
+    assert rel(upper) <= tolerance, "increase the search bound"
+    lo, hi = 0, upper
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if rel(mid) <= tolerance:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo, rel
+
+# Validate against the actual GD runs above: same stopping count where GD converged,
+# and the same relative gradient at the 5,000-update cap where it did not.
+for result in gd_results:
+    count, rel_fn = exact_gd_update_count(result["sigma"])
+    if result["converged"]:
+        assert count == result["iterations"], (count, result["iterations"])
+    else:
+        np.testing.assert_allclose(rel_fn(result["iterations"]), result["relative_gradient"][-1], rtol=1e-6)
+
+exact_widths = [0.5, 1.0, 1.5, blur_sigma]
+exact_counts = {}
+print(f"{'sigma (px)':>10} {'cond(H) estimate':>18} {'GD updates to 1e-5':>20} {'ratio to sigma=0.5':>20}")
+for sigma in exact_widths:
+    count, _ = exact_gd_update_count(sigma)
+    exact_counts[sigma] = count
+    _, kappa_sigma = hessian_spectrum_from_factor(blur_axis_matrix(image_size, sigma))
+    print(f"{sigma:10.2f} {kappa_sigma:18.3e} {count:20,d} {count / exact_counts[exact_widths[0]]:20,.0f}")
+
+```
+
+    sigma (px)   cond(H) estimate   GD updates to 1e-5   ratio to sigma=0.5
+          0.50          9.199e+00                   51                    1
+          1.00          2.334e+07              531,759               10,427
+          1.50          4.023e+17            1,004,304               19,692
+          2.00          2.272e+22              583,924               11,449
+
+
+#### D3 update counts to the fixed tolerance
+
+The 5,000-update cap hid how slow the wide-blur run really is. Because the periodic blur is circulant, gradient descent acts on each Fourier mode independently, so the exact number of updates to reach $10^{-5}$ can be computed without running millions of iterations. The cell above checks this against the runs already done: it reproduces the 51-update stop at 0.5 pixels exactly and the relative gradient at the 5,000-update cap for 2 pixels. At the original 2-pixel width, plain gradient descent needs about $5.8\times10^{5}$ updates, roughly 11,000 times the 51 needed at 0.5 pixels.
+
+The counts are not monotone in $\sigma$ (1.0 pixel needs about $5.3\times10^{5}$ and 1.5 pixels about $1.0\times10^{6}$). The count depends on the whole spectrum and on how much of the observation's gradient energy sits in weakly curved modes, which noise also affects, so it is not a function of $\kappa$ alone. What the table does show is that every width of 1 pixel or more needs $10^{5}$ to $10^{6}$ updates, against tens for 0.5 pixels. For a gradient-based stopping rule, this is a statement about update counts and not about reconstruction quality.
 
 
 ## 5. Proposed solution and demonstration
@@ -727,7 +830,7 @@ plt.show()
 
 
     
-![png](image_deblurring_files/image_deblurring_29_0.png)
+![png](image_deblurring_files/image_deblurring_32_0.png)
     
 
 
@@ -754,7 +857,7 @@ print("All panels use grayscale limits 0 to 1. Values outside that range saturat
 
 
     
-![png](image_deblurring_files/image_deblurring_30_0.png)
+![png](image_deblurring_files/image_deblurring_33_0.png)
     
 
 
@@ -778,6 +881,43 @@ All images share the same grayscale limits. Out-of-range intensities saturate vi
 Background: [Hansen's regularization-method notes](https://www2.compute.dtu.dk/~pcha/DIP/chap4.pdf) describe Tikhonov filtering and the stability-bias tradeoff, using a squared-parameter convention rather than this notebook's penalty coefficient.
 
 
+
+```python
+# Sensitivity of the remedy to lambda. lambda = 0.01 stays the fixed choice made in advance;
+# this table only shows how the tradeoff behaves, using the FFT minimizer and exact GD counts.
+lambda_grid = [1e-4, 1e-3, 1e-2, 1e-1]
+sens_rows = []
+for lam in lambda_grid:
+    filt = np.conj(d4_transfer) / (np.abs(d4_transfer)**2 + lam)
+    x_noisy = np.fft.ifft2(filt * np.fft.fft2(noisy_image)).real
+    x_clean = np.fft.ifft2(filt * np.fft.fft2(blurred_image)).real
+    rmse_l = np.sqrt(np.mean((x_noisy - sharp_image)**2))
+    bias_l = np.sqrt(np.mean((x_clean - sharp_image)**2))
+    kappa_l = (hessian_eigenvalues[0] + lam) / (hessian_eigenvalues[-1] + lam)
+    updates_l, _ = exact_gd_update_count(blur_sigma, weight=lam)
+    sens_rows.append((lam, kappa_l, updates_l, rmse_l, bias_l, 1 / (2 * np.sqrt(lam))))
+
+# The lambda = 0.01 row must reproduce the GD run above.
+row_001 = next(r for r in sens_rows if r[0] == d4_lambda)
+assert row_001[2] == d4_regularized["iterations"], (row_001[2], d4_regularized["iterations"])
+print(f"{'lambda':>8} {'cond(H+lambda I)':>17} {'GD updates':>11} {'image RMSE':>11} {'bias RMSE':>10} {'noise-gain bound':>17}")
+for lam, kap_l, upd_l, rmse_l, bias_l, gain_l in sens_rows:
+    print(f"{lam:8.0e} {kap_l:17.1f} {upd_l:11,d} {rmse_l:11.4f} {bias_l:10.4f} {gain_l:17.1f}")
+
+```
+
+      lambda  cond(H+lambda I)  GD updates  image RMSE  bias RMSE  noise-gain bound
+       1e-04           10001.0      17,199      0.4114     0.0574              50.0
+       1e-03            1001.0       2,663      0.1434     0.0606              15.8
+       1e-02             101.0         369      0.0811     0.0688               5.0
+       1e-01              11.0          52      0.0972     0.0961               1.6
+
+
+#### D4 sensitivity: how the remedy depends on $\lambda$
+
+The condition number of $H+\lambda I$ is close to $(1+\lambda)/\lambda$, so the update count falls by roughly a factor of 10 for each factor-of-10 increase in $\lambda$ (about $1.7\times10^{4}$, $2.7\times10^{3}$, 369, and 52 updates). The reconstruction error is not monotone. With $\lambda=10^{-4}$ the noise gain bound of 50 lets noise dominate (RMSE about 0.41); with $\lambda=0.1$ the bias term dominates (RMSE about 0.097, bias about 0.096). The fixed choice $\lambda=0.01$ falls between these two, with the lowest RMSE of the four values. It was chosen before this table was computed and is not claimed to be optimal; this is a single noise realization, and the RMSE column uses the known sharp image for evaluation only.
+
+
 ## 6. Assumptions and simplifications
 
 - **Known blur:** the point-spread function is a spatially uniform, symmetric, separable, normalized Gaussian. The blur width is known. We do not estimate an unknown kernel or model motion blur, spatially varying defocus, or blur-model error.
@@ -788,15 +928,15 @@ Background: [Hansen's regularization-method notes](https://www2.compute.dtu.dk/~
 - **Unconstrained intensities:** physical intensity bounds are omitted to isolate conditioning. Display limits 0 to 1 only control visualization. Negative values and overshoots remain in the optimization and RMSE calculations.
 - **Finite precision:** calculations use float64. The unregularized condition number is a structured spectral estimate, with the D1 precision caveat; $1/\epsilon$ is a caution scale for direct Hessian computations, not a universal limit on all condition estimates. Small Jacobi differences are numerical effects, not genuine changes in exact conditioning.
 - **Stopping and evaluation:** a relative gradient tolerance measures stationarity of each method's own objective, not reconstruction accuracy. An iteration-limit outcome is not convergence. The sharp image is available only for synthetic evaluation; a real reconstruction would not have ground-truth RMSE.
-- **Limited remedy study:** the identity penalty favors smaller intensities, including slight brightness shrinkage, and attenuates detail. One regularization parameter and one noise realization are tested. Derivative penalties, edge-preserving priors, parameter-selection methods, multiple trials, and real-image validation are outside this experiment.
+- **Limited remedy study:** the identity penalty favors smaller intensities, including slight brightness shrinkage, and attenuates detail. The main comparison uses one fixed $\lambda$, plus a four-value sensitivity sweep, and one noise realization. Derivative penalties, edge-preserving priors, parameter-selection methods, multiple trials, and real-image validation are outside this experiment.
 
 ### What the results support
 
-At the original 2-pixel width, ordinary GD reaches the 5,000-update limit with relative gradient about $1.05\times10^{-4}$. Tikhonov reaches $10^{-5}$ in 369 updates, changes the Hessian condition from a spectral estimate of about $2.27\times10^{22}$ to 101, and reduces image RMSE from about 0.3435 to 0.0810. These results support stabilization of this synthetic inverse problem, with a measurable noise-bias tradeoff; they do not establish general performance on real inspection images.
+At the original 2-pixel width, ordinary GD is still at relative gradient about $1.05\times10^{-4}$ after 5,000 updates; an exact Fourier-domain count shows it needs about $5.8\times10^{5}$ updates to reach $10^{-5}$, against 51 updates at 0.5 pixels. Tikhonov reaches $10^{-5}$ in 369 updates, about 1,600 times fewer, changes the Hessian condition from a spectral estimate of about $2.27\times10^{22}$ to 101, and reduces image RMSE from about 0.3435 to 0.0810. These results support stabilization of this synthetic inverse problem, with a measurable noise-bias tradeoff; they do not establish general performance on real inspection images.
 
 ### Reproducibility
 
-Restart the kernel and run all cells in their displayed order. The setup requires only the packages already listed in `requirements.txt`; all image data are generated in the notebook. The final analytic check below independently checks the spectrum, diagonal rescaling, and stopping counts on a tiny instance of the same model. Small last-digit differences can occur across library and BLAS versions without changing the main conclusions.
+Restart the kernel and run all cells in their displayed order. The setup requires Python 3.10 or newer and the packages in `requirements.txt` (NumPy, SciPy, Matplotlib, and Jupyter with ipykernel); the setup cell prints the exact versions used. All image data are generated in the notebook. The final analytic check below independently checks the spectrum, diagonal rescaling, and stopping counts on a tiny instance of the same model. Small last-digit differences can occur across library and BLAS versions without changing the main conclusions.
 
 
 ### Analytic check on a 2 x 2 periodic blur
